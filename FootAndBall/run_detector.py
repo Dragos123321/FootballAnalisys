@@ -200,6 +200,7 @@ def get_most_dominant_color(colors):
 
 
 players_colors = {}
+current_possession_player = None
 
 
 def check_intersection(ball_x, ball_y, player_x1, player_x2, player_y1, player_y2):
@@ -210,11 +211,11 @@ def check_intersection(ball_x, ball_y, player_x1, player_x2, player_y1, player_y
 
 
 def draw_bboxes(image, detections):
+    global current_possession_player
     font = cv2.FONT_HERSHEY_SIMPLEX
     boxes = []
     ball = []
     box_detections = []
-    current_possession_player = None
     colors = [(255, 255, 255), (255, 0, 0), (0, 0, 255), (0, 0, 0), (0, 165, 255), (0, 128, 128), (128, 0, 128)]
     for box, label, score in zip(detections['boxes'], detections['labels'], detections['scores']):
         if label == PLAYER_LABEL:
