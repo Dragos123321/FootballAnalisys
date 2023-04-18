@@ -25,6 +25,8 @@ from data.augmentation import PLAYER_LABEL, BALL_LABEL
 
 import sched, time
 
+from threading import Thread
+
 team_blue_secs = 0
 team_white_secs = 0
 total_time_secs = 0
@@ -320,7 +322,8 @@ def draw_bboxes(image, detections):
         cv2.rectangle(image, (x1, y1), (x2, y2), colors[color_index], 2)
         cv2.putText(image, team_white_poss, (x1, max(0, y1 - 30)), font, 1, colors[color_index], 2)
         cv2.putText(image, team_blue_poss, (int(x1), max(0, int(y1) - 70)), font, 1, colors[color_index], 2)
-        cv2.putText(image, "YES" if id == current_possession_player else "NO", (int(x1), max(0, int(y1) - 30)), font, 1, colors[color_index], 2)
+        cv2.putText(image, "YES" if id == current_possession_player else "NO", (int(x1), max(0, int(y1) - 30)), font, 1,
+                    colors[color_index], 2)
 
     # for box in boxes:
     #     cv2.rectangle(image, (int(box[0]), int(box[2])), (int(box[1]), int(box[3])), colors[box[4]], 2)
@@ -365,7 +368,8 @@ def run_detector(model, args):
 
     my_scheduler = sched.scheduler(time.time, time.sleep)
     my_scheduler.enter(60, 1, calc_possession, (my_scheduler,))
-    my_scheduler.run()
+    sched_thread = Thread(target=lambda: my_scheduler.run())
+    sched_thread.start()
 
     while sequence.isOpened():
         ret, frame = sequence.read()
@@ -385,6 +389,7 @@ def run_detector(model, args):
         out_sequence.write(frame)
         pbar.update(1)
 
+    sched_thread.join()
     pbar.close()
     sequence.release()
     out_sequence.release()
