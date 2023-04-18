@@ -44,19 +44,18 @@ def calc_possession(scheduler):
         return
     scheduler.enter(1, 1, calc_possession, (scheduler,))
     if current_possession_team is None:
-        total_time_secs += 1
-        team_blue_poss = f"{100 * (team_blue_secs / total_time_secs)}%"
-        team_white_poss = f"{100 * (team_white_secs / total_time_secs)}%"
+        team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
+        team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
     elif current_possession_team == 1:
         total_time_secs += 1
         team_blue_secs += 1
-        team_blue_poss = f"{100 * (team_blue_secs / total_time_secs)}%"
-        team_white_poss = f"{100 * (team_white_secs / total_time_secs)}%"
+        team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
+        team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
     else:
         total_time_secs += 1
         team_white_secs += 1
-        team_blue_poss = f"{100 * (team_blue_secs / total_time_secs)}%"
-        team_white_poss = f"{100 * (team_white_secs / total_time_secs)}%"
+        team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
+        team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
 
 
 def create_mask(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
