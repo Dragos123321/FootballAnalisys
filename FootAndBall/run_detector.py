@@ -35,10 +35,13 @@ team_white_poss = ""
 players_colors = {}
 current_possession_player = None
 current_possession_team = None
+close_calculator = False
 
 
 def calc_possession(scheduler):
-    global team_blue_secs, team_white_secs, total_time_secs, team_blue_poss, team_white_poss, current_possession_team
+    global team_blue_secs, team_white_secs, total_time_secs, team_blue_poss, team_white_poss, current_possession_team, close_calculator
+    if close_calculator:
+        return
     scheduler.enter(1, 1, calc_possession, (scheduler,))
     if current_possession_team is None:
         total_time_secs += 1
@@ -317,11 +320,11 @@ def draw_bboxes(image, detections):
                 current_possession_team = None
             if has_ball and id != current_possession_player:
                 current_possession_player = id
-                current_possession_team = 1 if color_index == 2 else 2
+                current_possession_team = 1 if color_index == 1 else 2
 
         cv2.rectangle(image, (x1, y1), (x2, y2), colors[color_index], 2)
-        cv2.putText(image, team_white_poss, (x1, max(0, y1 - 30)), font, 1, colors[color_index], 2)
-        cv2.putText(image, team_blue_poss, (int(x1), max(0, int(y1) - 70)), font, 1, colors[color_index], 2)
+        cv2.putText(image, team_white_poss, (x1, max(0, y1 - 70)), font, 1, (255, 255, 255), 2)
+        cv2.putText(image, team_blue_poss, (int(x1), max(0, int(y1) - 110)), font, 1, (255, 0, 0), 2)
         cv2.putText(image, "YES" if id == current_possession_player else "NO", (int(x1), max(0, int(y1) - 30)), font, 1,
                     colors[color_index], 2)
 
@@ -339,6 +342,7 @@ def draw_bboxes(image, detections):
 
 
 def run_detector(model, args):
+    global close_calculator
     model.print_summary(show_architecture=False)
     model = model.to(args.device)
 
@@ -367,7 +371,7 @@ def run_detector(model, args):
     pbar = tqdm.tqdm(total=n_frames)
 
     my_scheduler = sched.scheduler(time.time, time.sleep)
-    my_scheduler.enter(60, 1, calc_possession, (my_scheduler,))
+    my_scheduler.enter(1, 1, calc_possession, (my_scheduler,))
     sched_thread = Thread(target=lambda: my_scheduler.run())
     sched_thread.start()
 
@@ -389,10 +393,11 @@ def run_detector(model, args):
         out_sequence.write(frame)
         pbar.update(1)
 
-    sched_thread.join()
     pbar.close()
     sequence.release()
     out_sequence.release()
+    close_calculator = True
+    sched_thread.join()
 
 
 if __name__ == '__main__':
