@@ -29,7 +29,7 @@ from threading import Thread
 
 team_blue_secs = 0
 team_white_secs = 0
-total_time_secs = 0
+total_time_secs = 1
 team_blue_poss = ""
 team_white_poss = ""
 players_colors = {}
