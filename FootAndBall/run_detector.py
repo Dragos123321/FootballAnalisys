@@ -362,6 +362,11 @@ def run_detector(model, args):
 
     print('Processing video: {}'.format(args.path))
     pbar = tqdm.tqdm(total=n_frames)
+
+    my_scheduler = sched.scheduler(time.time, time.sleep)
+    my_scheduler.enter(60, 1, calc_possession, (my_scheduler,))
+    my_scheduler.run()
+
     while sequence.isOpened():
         ret, frame = sequence.read()
         if not ret:
