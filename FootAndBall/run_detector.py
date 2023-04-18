@@ -23,6 +23,36 @@ import data.augmentation as augmentations
 import network.footandball as footandball
 from data.augmentation import PLAYER_LABEL, BALL_LABEL
 
+import sched, time
+
+team_blue_secs = 0
+team_white_secs = 0
+total_time_secs = 0
+team_blue_poss = ""
+team_white_poss = ""
+players_colors = {}
+current_possession_player = None
+current_possession_team = None
+
+
+def calc_possession(scheduler):
+    global team_blue_secs, team_white_secs, total_time_secs, team_blue_poss, team_white_poss, current_possession_team
+    scheduler.enter(1, 1, calc_possession, (scheduler,))
+    if current_possession_team is None:
+        total_time_secs += 1
+        team_blue_poss = f"{100 * (team_blue_secs / total_time_secs)}%"
+        team_white_poss = f"{100 * (team_white_secs / total_time_secs)}%"
+    elif current_possession_team == 1:
+        total_time_secs += 1
+        team_blue_secs += 1
+        team_blue_poss = f"{100 * (team_blue_secs / total_time_secs)}%"
+        team_white_poss = f"{100 * (team_white_secs / total_time_secs)}%"
+    else:
+        total_time_secs += 1
+        team_white_secs += 1
+        team_blue_poss = f"{100 * (team_blue_secs / total_time_secs)}%"
+        team_white_poss = f"{100 * (team_white_secs / total_time_secs)}%"
+
 
 def create_mask(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
     mask = np.ones(frame.shape[:2], dtype=frame.dtype)
@@ -199,19 +229,15 @@ def get_most_dominant_color(colors):
     return max(colors, key=colors.count)
 
 
-players_colors = {}
-current_possession_player = None
-
-
 def check_intersection(ball_x, ball_y, player_x1, player_x2, player_y1, player_y2):
-    if player_x1 - 20 <= ball_x <= player_x2 + 20 and player_y1 <= ball_y <= player_y2:
+    if player_x1 - 30 <= ball_x <= player_x2 + 30 and player_y1 <= ball_y <= player_y2:
         return True
 
     return False
 
 
 def draw_bboxes(image, detections):
-    global current_possession_player
+    global current_possession_player, players_colors, team_white_poss, team_blue_poss, current_possession_team
     font = cv2.FONT_HERSHEY_SIMPLEX
     boxes = []
     ball = []
@@ -284,15 +310,16 @@ def draw_bboxes(image, detections):
 
         if len(ball) > 0:
             has_ball = check_intersection(ball[0], ball[1], x1, x2, y1, y2)
-        else:
-            has_ball = False
-
-        if has_ball and id != current_possession_player:
-            current_possession_player = id
+            if id == current_possession_player and not has_ball:
+                current_possession_player = None
+                current_possession_team = None
+            if has_ball and id != current_possession_player:
+                current_possession_player = id
+                current_possession_team = 1 if color_index == 2 else 2
 
         cv2.rectangle(image, (x1, y1), (x2, y2), colors[color_index], 2)
-        # cv2.putText(image, '{:0.2f}'.format(score), (x1, max(0, y1 - 30)), font, 1, colors[color_index], 2)
-        # cv2.putText(image, '{:0.2f}'.format(id), (int(x1), max(0, int(y1) - 70)), font, 1, colors[color_index], 2)
+        cv2.putText(image, team_white_poss, (x1, max(0, y1 - 30)), font, 1, colors[color_index], 2)
+        cv2.putText(image, team_blue_poss, (int(x1), max(0, int(y1) - 70)), font, 1, colors[color_index], 2)
         cv2.putText(image, "YES" if id == current_possession_player else "NO", (int(x1), max(0, int(y1) - 30)), font, 1, colors[color_index], 2)
 
     # for box in boxes:
