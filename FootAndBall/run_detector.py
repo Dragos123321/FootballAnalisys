@@ -6,25 +6,235 @@
 # Run FootAndBall detector on ISSIA-CNR Soccer videos
 #
 
-import torch
-import cv2
-import os
 import argparse
-import tqdm
+import os
+from typing import List
 
-import network.footandball as footandball
+import cv2
+import numpy as np
+import torch
+import tqdm
+from norfair import mean_euclidean
+from norfair.camera_motion import MotionEstimator
+from norfair.tracker import Detection, Tracker
+from norfair.tracker import TrackedObject
+
 import data.augmentation as augmentations
+import network.footandball as footandball
 from data.augmentation import PLAYER_LABEL, BALL_LABEL
 
 
+def create_mask(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
+    mask = np.ones(frame.shape[:2], dtype=frame.dtype)
+
+    # remove goal counter
+    mask[69:200, 160:510] = 0
+
+    return mask
+
+
+def update_motion_estimator(
+        motion_estimator: MotionEstimator,
+        detections: List[Detection],
+        frame: np.ndarray
+):
+    mask = create_mask(frame, detections)
+    coord_transformations = motion_estimator.update(frame, mask)
+    return coord_transformations
+
+
+def get_player_team(image):
+    frame = image.copy()
+    frame = cv2.resize(frame, (250, 400))
+
+    height, width, _ = frame.shape
+
+    y_start = int(height * 0.275)
+    y_end = int(height * 0.65)
+    x_start = int(width * 0.225)
+    x_end = int(width * 0.775)
+
+    img = frame[y_start:y_end, x_start:x_end]
+
+    # cv2.imshow("img", img)
+
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    # define range of white color in HSV
+    # change it according to your need !
+
+    # WHITE Range
+    lower_white = np.array([0, 0, 200], dtype=np.uint8)
+    upper_white = np.array([180, 50, 255], dtype=np.uint8)
+
+    # GREEN Range
+    lower_green = np.array([33, 50, 70], dtype=np.uint8)
+    upper_green = np.array([80, 255, 255], dtype=np.uint8)
+
+    # BLUE Range
+    lower_blue_strong = np.array([110, 50, 60], dtype=np.uint8)
+    upper_blue_strong = np.array([130, 255, 255], dtype=np.uint8)
+
+    # BLUE Range
+    lower_blue_light = np.array([100, 90, 90], dtype=np.uint8)
+    upper_blue_light = np.array([110, 225, 225], dtype=np.uint8)
+
+    # RED Range
+    lower_red_low = np.array([0, 70, 70], dtype=np.uint8)
+    upper_red_low = np.array([8, 255, 255], dtype=np.uint8)
+
+    # PINK Range
+    lower_red_high = np.array([175, 70, 70], dtype=np.uint8)
+    upper_red_high = np.array([180, 255, 255], dtype=np.uint8)
+
+    # BLACK Range
+    lower_black = np.array([0, 0, 0], dtype=np.uint8)
+    upper_black = np.array([180, 255, 45], dtype=np.uint8)
+
+    # ORANGE Range
+    lower_orange = np.array([13, 120, 120], dtype=np.uint8)
+    upper_orange = np.array([20, 255, 255], dtype=np.uint8)
+
+    # Yellow Range
+    lower_yellow = np.array([25, 200, 150], dtype=np.uint8)
+    upper_yellow = np.array([30, 255, 255], dtype=np.uint8)
+
+    # PURPLE Range
+    lower_purple = np.array([130, 80, 80], dtype=np.uint8)
+    upper_purple = np.array([160, 255, 255], dtype=np.uint8)
+
+    # Threshold the HSV image to get only white colors
+    mask_white = cv2.inRange(hsv, lower_white, upper_white)
+    mask_green = cv2.inRange(hsv, lower_green, upper_green)
+    mask_blue_strong = cv2.inRange(hsv, lower_blue_strong, upper_blue_strong)
+    mask_blue_light = cv2.inRange(hsv, lower_blue_light, upper_blue_light)
+    mask_blue = cv2.bitwise_or(mask_blue_light, mask_blue_strong)
+    mask_red_low = cv2.inRange(hsv, lower_red_low, upper_red_low)
+    mask_red_high = cv2.inRange(hsv, lower_red_high, upper_red_high)
+    mask_red = cv2.bitwise_or(mask_red_low, mask_red_high)
+    mask_black = cv2.inRange(hsv, lower_black, upper_black)
+    mask_orange = cv2.inRange(hsv, lower_orange, upper_orange)
+    mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
+    mask_purple = cv2.inRange(hsv, lower_purple, upper_purple)
+
+    nzCount = [0, 0, 0, 0, 0, 0, 0]
+
+    res_green = cv2.bitwise_and(img, img, mask=cv2.bitwise_not(mask_green))
+
+    # Bitwise-AND mask and original image
+    res_white = cv2.bitwise_and(res_green, res_green, mask=mask_white)
+    res_white = cv2.cvtColor(res_white, cv2.COLOR_HSV2BGR)
+    res_white = cv2.cvtColor(res_white, cv2.COLOR_BGR2GRAY)
+    nzCount[0] = cv2.countNonZero(res_white)
+
+    res_blue = cv2.bitwise_and(res_green, res_green, mask=mask_blue)
+    res_blue = cv2.cvtColor(res_blue, cv2.COLOR_HSV2BGR)
+    res_blue = cv2.cvtColor(res_blue, cv2.COLOR_BGR2GRAY)
+    nzCount[1] = cv2.countNonZero(res_blue)
+
+    res_red = cv2.bitwise_and(res_green, res_green, mask=mask_red)
+    res_red = cv2.cvtColor(res_red, cv2.COLOR_HSV2BGR)
+    res_red = cv2.cvtColor(res_red, cv2.COLOR_BGR2GRAY)
+    nzCount[2] = cv2.countNonZero(res_red)
+
+    res_black = cv2.bitwise_and(res_green, res_green, mask=mask_black)
+    res_black = cv2.cvtColor(res_black, cv2.COLOR_HSV2BGR)
+    res_black = cv2.cvtColor(res_black, cv2.COLOR_BGR2GRAY)
+    nzCount[3] = cv2.countNonZero(res_black)
+
+    res_orange = cv2.bitwise_and(res_green, res_green, mask=mask_orange)
+    res_orange = cv2.cvtColor(res_orange, cv2.COLOR_HSV2BGR)
+    res_orange = cv2.cvtColor(res_orange, cv2.COLOR_BGR2GRAY)
+    nzCount[4] = cv2.countNonZero(res_orange)
+
+    res_yellow = cv2.bitwise_and(res_green, res_green, mask=mask_yellow)
+    res_yellow = cv2.cvtColor(res_yellow, cv2.COLOR_HSV2BGR)
+    res_yellow = cv2.cvtColor(res_yellow, cv2.COLOR_BGR2GRAY)
+    nzCount[5] = cv2.countNonZero(res_yellow)
+
+    res_purple = cv2.bitwise_and(res_green, res_green, mask=mask_purple)
+    res_purple = cv2.cvtColor(res_purple, cv2.COLOR_HSV2BGR)
+    res_purple = cv2.cvtColor(res_purple, cv2.COLOR_BGR2GRAY)
+    nzCount[6] = cv2.countNonZero(res_purple)
+
+    max_zeroes = nzCount[0]
+    max_index = 0
+
+    # cv2.waitKey(250)
+
+    for i in range(len(nzCount)):
+        if nzCount[i] > max_zeroes and i in [0, 1, 3, 5]:
+            max_zeroes = nzCount[i]
+            max_index = i
+
+    return max_index
+
+
+player_tracker = Tracker(
+    distance_function=mean_euclidean,
+    distance_threshold=250,
+    initialization_delay=3,
+    hit_counter_max=90,
+)
+
+
+def TrackedObjects_to_Detections(
+        tracked_objects: List[TrackedObject],
+) -> List[Detection]:
+    live_objects = [
+        entity for entity in tracked_objects if entity.live_points.any()
+    ]
+
+    detections = []
+
+    for tracked_object in live_objects:
+        detection = tracked_object.last_detection
+        detection.data["id"] = int(tracked_object.id)
+        detections.append(detection)
+
+    return detections
+
+
+def get_most_dominant_color(colors):
+    return max(colors, key=colors.count)
+
+
+players_colors = {}
+
+
+def check_intersection(ball_x, ball_y, player_x1, player_x2, player_y1, player_y2):
+    if player_x1 - 5 <= ball_x <= player_x2 + 5 and player_y1 - 5 <= ball_y <= player_y2 + 5:
+        return True
+
+    return False
+
 def draw_bboxes(image, detections):
     font = cv2.FONT_HERSHEY_SIMPLEX
+    boxes = []
+    ball = []
+    box_detections = []
+    colors = [(255, 255, 255), (255, 0, 0), (0, 0, 255), (0, 0, 0), (0, 165, 255), (0, 128, 128), (128, 0, 128)]
     for box, label, score in zip(detections['boxes'], detections['labels'], detections['scores']):
         if label == PLAYER_LABEL:
             x1, y1, x2, y2 = box
-            color = (255, 0, 0)
-            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-            cv2.putText(image, '{:0.2f}'.format(score), (int(x1), max(0, int(y1)-10)), font, 1, color, 2)
+            img = image[int(y1):int(y2), int(x1):int(x2)]
+
+            if img.size <= 0:
+                continue
+            color_index = get_player_team(img)
+
+            box = np.array(
+                [
+                    [int(x1), int(y1)],
+                    [int(x2), int(y2)],
+                ]
+            )
+
+            data = {label: "player", "color_index": color_index, "score": score}
+
+            box_detections.append(Detection(points=box, data=data))
+
+            boxes.append([x1, x2, y1, y2, color_index, score])
 
         elif label == BALL_LABEL:
             x1, y1, x2, y2 = box
@@ -32,9 +242,60 @@ def draw_bboxes(image, detections):
             y = int((y1 + y2) / 2)
             color = (0, 0, 255)
             radius = 25
-            cv2.circle(image, (int(x), int(y)), radius, color, 2)
-            cv2.putText(image, '{:0.2f}'.format(score), (max(0, int(x - radius)), max(0, (y - radius - 10))), font, 1,
-                        color, 2)
+            ball = [x, y, color, radius, score]
+
+    motion_estimator = MotionEstimator()
+
+    coord_transformations = update_motion_estimator(
+        motion_estimator=motion_estimator,
+        detections=box_detections,
+        frame=image
+    )
+
+    player_track_objects = player_tracker.update(detections=box_detections, coord_transformations=coord_transformations)
+
+    player_detections = TrackedObjects_to_Detections(player_track_objects)
+
+    for detection in player_detections:
+        if detection.data["id"] in player_detections and len(players_colors[detection.data["id"]]) > 10:
+            players_colors[detection.data["id"]].pop(0)
+
+        if detection.data["id"] not in players_colors:
+            players_colors[detection.data["id"]] = []
+
+        players_colors[detection.data["id"]].append(detection.data["color_index"])
+
+    dominant_colors = {}
+
+    for key in players_colors:
+        dominant_colors[key] = get_most_dominant_color(players_colors[key])
+
+    for detection in player_detections:
+        x1 = detection.points[0][0]
+        x2 = detection.points[1][0]
+        y1 = detection.points[0][1]
+        y2 = detection.points[1][1]
+        if len(ball) > 0:
+            has_ball = check_intersection(ball[0], ball[1], x1, x2, y1, y2)
+        else:
+            has_ball = False
+        id = detection.data["id"]
+        color_index = dominant_colors[id]
+        score = detection.data["score"]
+        cv2.rectangle(image, (x1, y1), (x2, y2), colors[color_index], 2)
+        # cv2.putText(image, '{:0.2f}'.format(score), (x1, max(0, y1 - 30)), font, 1, colors[color_index], 2)
+        # cv2.putText(image, '{:0.2f}'.format(id), (int(x1), max(0, int(y1) - 70)), font, 1, colors[color_index], 2)
+        cv2.putText(image, "YES" if has_ball else "NO", (int(x1), max(0, int(y1) - 30)), font, 1, colors[color_index], 2)
+
+    # for box in boxes:
+    #     cv2.rectangle(image, (int(box[0]), int(box[2])), (int(box[1]), int(box[3])), colors[box[4]], 2)
+    # cv2.putText(image, '{:0.2f}'.format(box[5]), (int(box[0]), max(0, int(box[2]) - 30)), font, 1, colors[box[4]], 2)
+
+    if len(ball) > 0:
+        cv2.circle(image, (int(ball[0]), int(ball[1])), ball[3], ball[2], 2)
+        cv2.putText(image, '{:0.2f}'.format(ball[4]),
+                    (max(0, int(ball[0] - ball[3])), max(0, (ball[1] - ball[3] - 10))), font, 1,
+                    ball[2], 2)
 
     return image
 
@@ -121,4 +382,3 @@ if __name__ == '__main__':
                                       player_threshold=args.player_threshold)
 
     run_detector(model, args)
-
