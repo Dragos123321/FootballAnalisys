@@ -29,7 +29,7 @@ from threading import Thread
 
 team_blue_secs = 0
 team_white_secs = 0
-total_time_secs = 1
+total_time_secs = 0
 team_blue_poss = ""
 team_white_poss = ""
 players_colors = {}
@@ -44,8 +44,9 @@ def calc_possession(scheduler):
         return
     scheduler.enter(1, 1, calc_possession, (scheduler,))
     if current_possession_team is None:
-        team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
-        team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
+        if total_time_secs > 0:
+            team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
+            team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
     elif current_possession_team == 1:
         total_time_secs += 1
         team_blue_secs += 1
@@ -197,11 +198,14 @@ def get_player_team(image):
     # cv2.waitKey(250)
 
     for i in range(len(nzCount)):
-        if nzCount[i] > max_zeroes and i in [0, 1, 3, 5]:
+        if nzCount[i] > max_zeroes and i in [0, 1]:
             max_zeroes = nzCount[i]
             max_index = i
 
-    return max_index
+    if max_zeroes > 600:
+        return max_index
+
+    return None
 
 
 player_tracker = Tracker(
@@ -255,6 +259,9 @@ def draw_bboxes(image, detections):
             if img.size <= 0:
                 continue
             color_index = get_player_team(img)
+
+            if color_index is None:
+                continue
 
             box = np.array(
                 [
