@@ -203,16 +203,18 @@ players_colors = {}
 
 
 def check_intersection(ball_x, ball_y, player_x1, player_x2, player_y1, player_y2):
-    if player_x1 - 5 <= ball_x <= player_x2 + 5 and player_y1 - 5 <= ball_y <= player_y2 + 5:
+    if player_x1 - 20 <= ball_x <= player_x2 + 20 and player_y1 <= ball_y <= player_y2:
         return True
 
     return False
+
 
 def draw_bboxes(image, detections):
     font = cv2.FONT_HERSHEY_SIMPLEX
     boxes = []
     ball = []
     box_detections = []
+    current_possession_player = None
     colors = [(255, 255, 255), (255, 0, 0), (0, 0, 255), (0, 0, 0), (0, 165, 255), (0, 128, 128), (128, 0, 128)]
     for box, label, score in zip(detections['boxes'], detections['labels'], detections['scores']):
         if label == PLAYER_LABEL:
@@ -275,17 +277,22 @@ def draw_bboxes(image, detections):
         x2 = detection.points[1][0]
         y1 = detection.points[0][1]
         y2 = detection.points[1][1]
+        id = detection.data["id"]
+        color_index = dominant_colors[id]
+        score = detection.data["score"]
+
         if len(ball) > 0:
             has_ball = check_intersection(ball[0], ball[1], x1, x2, y1, y2)
         else:
             has_ball = False
-        id = detection.data["id"]
-        color_index = dominant_colors[id]
-        score = detection.data["score"]
+
+        if has_ball and id != current_possession_player:
+            current_possession_player = id
+
         cv2.rectangle(image, (x1, y1), (x2, y2), colors[color_index], 2)
         # cv2.putText(image, '{:0.2f}'.format(score), (x1, max(0, y1 - 30)), font, 1, colors[color_index], 2)
         # cv2.putText(image, '{:0.2f}'.format(id), (int(x1), max(0, int(y1) - 70)), font, 1, colors[color_index], 2)
-        cv2.putText(image, "YES" if has_ball else "NO", (int(x1), max(0, int(y1) - 30)), font, 1, colors[color_index], 2)
+        cv2.putText(image, "YES" if id == current_possession_player else "NO", (int(x1), max(0, int(y1) - 30)), font, 1, colors[color_index], 2)
 
     # for box in boxes:
     #     cv2.rectangle(image, (int(box[0]), int(box[2])), (int(box[1]), int(box[3])), colors[box[4]], 2)
