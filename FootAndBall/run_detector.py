@@ -314,9 +314,6 @@ def draw_bboxes(image, detections):
 
         if len(ball) > 0:
             has_ball = check_intersection(ball[0], ball[1], x1, x2, y1, y2)
-            if id == current_possession_player and not has_ball:
-                current_possession_player = None
-                current_possession_team = None
             if has_ball and id != current_possession_player:
                 current_possession_player = id
                 current_possession_team = 1 if color_index == 1 else 2
