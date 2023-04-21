@@ -8,6 +8,9 @@
 
 import argparse
 import os
+import sched
+import time
+from threading import Thread
 from typing import List
 
 import cv2
@@ -23,10 +26,6 @@ import data.augmentation as augmentations
 import network.footandball as footandball
 from data.augmentation import PLAYER_LABEL, BALL_LABEL
 
-import sched, time
-
-from threading import Thread
-
 team_blue_secs = 0
 team_white_secs = 0
 total_time_secs = 0
@@ -36,6 +35,7 @@ players_colors = {}
 current_possession_player = None
 current_possession_team = None
 close_calculator = False
+last_player_touching = []
 
 
 def calc_possession(scheduler):
@@ -45,24 +45,23 @@ def calc_possession(scheduler):
     scheduler.enter(1, 1, calc_possession, (scheduler,))
     if current_possession_team is None:
         if total_time_secs > 0:
-            team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
-            team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
+            team_blue_poss = "{}%".format(round(100 * (team_blue_secs / total_time_secs)))
+            team_white_poss = "{}%".format(round(100 * (team_white_secs / total_time_secs)))
     elif current_possession_team == 1:
         total_time_secs += 1
         team_blue_secs += 1
-        team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
-        team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
+        team_blue_poss = "{}%".format(round(100 * (team_blue_secs / total_time_secs)))
+        team_white_poss = "{}%".format(round(100 * (team_white_secs / total_time_secs)))
     else:
         total_time_secs += 1
         team_white_secs += 1
-        team_blue_poss = "{:0.2f}%".format(100 * (team_blue_secs / total_time_secs))
-        team_white_poss = "{:0.2f}%".format(100 * (team_white_secs / total_time_secs))
+        team_blue_poss = "{}%".format(round(100 * (team_blue_secs / total_time_secs)))
+        team_white_poss = "{}%".format(round(100 * (team_white_secs / total_time_secs)))
 
 
 def create_mask(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
     mask = np.ones(frame.shape[:2], dtype=frame.dtype)
 
-    # remove goal counter
     mask[69:200, 160:510] = 0
 
     return mask
@@ -99,7 +98,7 @@ def get_player_team(image):
     # change it according to your need !
 
     # WHITE Range
-    lower_white = np.array([0, 0, 200], dtype=np.uint8)
+    lower_white = np.array([0, 0, 210], dtype=np.uint8)
     upper_white = np.array([180, 50, 255], dtype=np.uint8)
 
     # GREEN Range
@@ -111,8 +110,8 @@ def get_player_team(image):
     upper_blue_strong = np.array([130, 255, 255], dtype=np.uint8)
 
     # BLUE Range
-    lower_blue_light = np.array([100, 90, 90], dtype=np.uint8)
-    upper_blue_light = np.array([110, 225, 225], dtype=np.uint8)
+    lower_blue_light = np.array([100, 100, 100], dtype=np.uint8)
+    upper_blue_light = np.array([110, 255, 255], dtype=np.uint8)
 
     # RED Range
     lower_red_low = np.array([0, 70, 70], dtype=np.uint8)
@@ -202,7 +201,7 @@ def get_player_team(image):
             max_zeroes = nzCount[i]
             max_index = i
 
-    if max_zeroes > 600:
+    if max_zeroes > 1500:
         return max_index
 
     return None
@@ -244,8 +243,19 @@ def check_intersection(ball_x, ball_y, player_x1, player_x2, player_y1, player_y
     return False
 
 
+def check_player_changed(touchings_array, id):
+    for i in range(1, len(touchings_array)):
+        if touchings_array[i] != touchings_array[i - 1]:
+            return False
+
+    if touchings_array[0] == id:
+        return False
+
+    return True
+
+
 def draw_bboxes(image, detections):
-    global current_possession_player, players_colors, team_white_poss, team_blue_poss, current_possession_team
+    global current_possession_player, players_colors, team_white_poss, team_blue_poss, current_possession_team, last_player_touching
     font = cv2.FONT_HERSHEY_SIMPLEX
     boxes = []
     ball = []
@@ -297,7 +307,7 @@ def draw_bboxes(image, detections):
     player_detections = TrackedObjects_to_Detections(player_track_objects)
 
     for detection in player_detections:
-        if detection.data["id"] in player_detections and len(players_colors[detection.data["id"]]) > 10:
+        if detection.data["id"] in player_detections and len(players_colors[detection.data["id"]]) > 5:
             players_colors[detection.data["id"]].pop(0)
 
         if detection.data["id"] not in players_colors:
@@ -322,8 +332,16 @@ def draw_bboxes(image, detections):
         if len(ball) > 0:
             has_ball = check_intersection(ball[0], ball[1], x1, x2, y1, y2)
             if has_ball and id != current_possession_player:
-                current_possession_player = id
-                current_possession_team = 1 if color_index == 1 else 2
+                if len(last_player_touching) < 7:
+                    last_player_touching.append(id)
+                    current_possession_player = id
+                    current_possession_team = 1 if color_index == 1 else 2
+                else:
+                    last_player_touching.pop()
+                    last_player_touching.append(id)
+                    if check_player_changed(last_player_touching, id):
+                        current_possession_player = id
+                        current_possession_team = 1 if color_index == 1 else 2
 
         cv2.rectangle(image, (x1, y1), (x2, y2), colors[color_index], 2)
         cv2.putText(image, team_white_poss, (x1, max(0, y1 - 70)), font, 1, (255, 255, 255), 2)
