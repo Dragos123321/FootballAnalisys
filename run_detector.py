@@ -22,41 +22,43 @@ from norfair.camera_motion import MotionEstimator
 from norfair.tracker import Detection, Tracker
 from norfair.tracker import TrackedObject
 
-import data.augmentation as augmentations
-import network.footandball as footandball
-from data.augmentation import PLAYER_LABEL, BALL_LABEL
+import FootAndBall.data.augmentation as augmentations
+import FootAndBall.network.footandball as footandball
+from FootAndBall.data.augmentation import PLAYER_LABEL, BALL_LABEL
 
-team_blue_secs = 0
-team_white_secs = 0
+team1_secs = 0
+team2_secs = 0
 total_time_secs = 0
-team_blue_poss = ""
-team_white_poss = ""
+team1_poss = ""
+team2_poss = ""
 players_colors = {}
 current_possession_player = None
 current_possession_team = None
 close_calculator = False
 last_player_touching = []
+color_index_mappings = {"white": 0, "dark_blue": 1, "light_blue": 2, "red": 3, "black": 4,
+                        "orange": 5, "yellow": 6, "purple": 7}
 
 
 def calc_possession(scheduler):
-    global team_blue_secs, team_white_secs, total_time_secs, team_blue_poss, team_white_poss, current_possession_team, close_calculator
+    global team1_secs, team2_secs, total_time_secs, team1_poss, team2_poss, current_possession_team, close_calculator
     if close_calculator:
         return
     scheduler.enter(1, 1, calc_possession, (scheduler,))
     if current_possession_team is None:
         if total_time_secs > 0:
-            team_blue_poss = "{}%".format(round(100 * (team_blue_secs / total_time_secs)))
-            team_white_poss = "{}%".format(round(100 * (team_white_secs / total_time_secs)))
+            team2_poss = "{}%".format(round(100 * (team2_secs / total_time_secs)))
+            team1_poss = "{}%".format(round(100 * (team1_secs / total_time_secs)))
     elif current_possession_team == 1:
         total_time_secs += 1
-        team_blue_secs += 1
-        team_blue_poss = "{}%".format(round(100 * (team_blue_secs / total_time_secs)))
-        team_white_poss = "{}%".format(round(100 * (team_white_secs / total_time_secs)))
+        team1_secs += 1
+        team1_poss = "{}%".format(round(100 * (team1_secs / total_time_secs)))
+        team2_poss = "{}%".format(round(100 * (team2_secs / total_time_secs)))
     else:
         total_time_secs += 1
-        team_white_secs += 1
-        team_blue_poss = "{}%".format(round(100 * (team_blue_secs / total_time_secs)))
-        team_white_poss = "{}%".format(round(100 * (team_white_secs / total_time_secs)))
+        team2_secs += 1
+        team1_poss = "{}%".format(round(100 * (team1_secs / total_time_secs)))
+        team2_poss = "{}%".format(round(100 * (team2_secs / total_time_secs)))
 
 
 def create_mask(frame: np.ndarray, detections: List[Detection]) -> np.ndarray:
@@ -77,7 +79,7 @@ def update_motion_estimator(
     return coord_transformations
 
 
-def get_player_team(image):
+def get_player_team(image, team1_color_index, team2_color_index):
     frame = image.copy()
     frame = cv2.resize(frame, (250, 400))
 
@@ -142,7 +144,6 @@ def get_player_team(image):
     mask_green = cv2.inRange(hsv, lower_green, upper_green)
     mask_blue_strong = cv2.inRange(hsv, lower_blue_strong, upper_blue_strong)
     mask_blue_light = cv2.inRange(hsv, lower_blue_light, upper_blue_light)
-    mask_blue = cv2.bitwise_or(mask_blue_light, mask_blue_strong)
     mask_red_low = cv2.inRange(hsv, lower_red_low, upper_red_low)
     mask_red_high = cv2.inRange(hsv, lower_red_high, upper_red_high)
     mask_red = cv2.bitwise_or(mask_red_low, mask_red_high)
@@ -151,7 +152,7 @@ def get_player_team(image):
     mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
     mask_purple = cv2.inRange(hsv, lower_purple, upper_purple)
 
-    nzCount = [0, 0, 0, 0, 0, 0, 0]
+    nzCount = [0, 0, 0, 0, 0, 0, 0, 0]
 
     res_green = cv2.bitwise_and(img, img, mask=cv2.bitwise_not(mask_green))
 
@@ -161,35 +162,40 @@ def get_player_team(image):
     res_white = cv2.cvtColor(res_white, cv2.COLOR_BGR2GRAY)
     nzCount[0] = cv2.countNonZero(res_white)
 
-    res_blue = cv2.bitwise_and(res_green, res_green, mask=mask_blue)
-    res_blue = cv2.cvtColor(res_blue, cv2.COLOR_HSV2BGR)
-    res_blue = cv2.cvtColor(res_blue, cv2.COLOR_BGR2GRAY)
-    nzCount[1] = cv2.countNonZero(res_blue)
+    res_blue_strong = cv2.bitwise_and(res_green, res_green, mask=mask_blue_strong)
+    res_blue_strong = cv2.cvtColor(res_blue_strong, cv2.COLOR_HSV2BGR)
+    res_blue_strong = cv2.cvtColor(res_blue_strong, cv2.COLOR_BGR2GRAY)
+    nzCount[1] = cv2.countNonZero(res_blue_strong)
+
+    res_blue_light = cv2.bitwise_and(res_green, res_green, mask=mask_blue_light)
+    res_blue_light = cv2.cvtColor(res_blue_light, cv2.COLOR_HSV2BGR)
+    res_blue_light = cv2.cvtColor(res_blue_light, cv2.COLOR_BGR2GRAY)
+    nzCount[2] = cv2.countNonZero(res_blue_light)
 
     res_red = cv2.bitwise_and(res_green, res_green, mask=mask_red)
     res_red = cv2.cvtColor(res_red, cv2.COLOR_HSV2BGR)
     res_red = cv2.cvtColor(res_red, cv2.COLOR_BGR2GRAY)
-    nzCount[2] = cv2.countNonZero(res_red)
+    nzCount[3] = cv2.countNonZero(res_red)
 
     res_black = cv2.bitwise_and(res_green, res_green, mask=mask_black)
     res_black = cv2.cvtColor(res_black, cv2.COLOR_HSV2BGR)
     res_black = cv2.cvtColor(res_black, cv2.COLOR_BGR2GRAY)
-    nzCount[3] = cv2.countNonZero(res_black)
+    nzCount[4] = cv2.countNonZero(res_black)
 
     res_orange = cv2.bitwise_and(res_green, res_green, mask=mask_orange)
     res_orange = cv2.cvtColor(res_orange, cv2.COLOR_HSV2BGR)
     res_orange = cv2.cvtColor(res_orange, cv2.COLOR_BGR2GRAY)
-    nzCount[4] = cv2.countNonZero(res_orange)
+    nzCount[5] = cv2.countNonZero(res_orange)
 
     res_yellow = cv2.bitwise_and(res_green, res_green, mask=mask_yellow)
     res_yellow = cv2.cvtColor(res_yellow, cv2.COLOR_HSV2BGR)
     res_yellow = cv2.cvtColor(res_yellow, cv2.COLOR_BGR2GRAY)
-    nzCount[5] = cv2.countNonZero(res_yellow)
+    nzCount[6] = cv2.countNonZero(res_yellow)
 
     res_purple = cv2.bitwise_and(res_green, res_green, mask=mask_purple)
     res_purple = cv2.cvtColor(res_purple, cv2.COLOR_HSV2BGR)
     res_purple = cv2.cvtColor(res_purple, cv2.COLOR_BGR2GRAY)
-    nzCount[6] = cv2.countNonZero(res_purple)
+    nzCount[7] = cv2.countNonZero(res_purple)
 
     max_zeroes = nzCount[0]
     max_index = 0
@@ -197,7 +203,7 @@ def get_player_team(image):
     # cv2.waitKey(250)
 
     for i in range(len(nzCount)):
-        if nzCount[i] > max_zeroes and i in [0, 1]:
+        if nzCount[i] > max_zeroes and i in [team1_color_index, team2_color_index]:
             max_zeroes = nzCount[i]
             max_index = i
 
@@ -254,13 +260,14 @@ def check_player_changed(touchings_array, id):
     return True
 
 
-def draw_bboxes(image, detections):
-    global current_possession_player, players_colors, team_white_poss, team_blue_poss, current_possession_team, last_player_touching
+def draw_bboxes(image, detections, team1_color, team2_color):
+    global current_possession_player, players_colors, team1_poss, team2_poss, current_possession_team, \
+        last_player_touching, color_index_mappings
     font = cv2.FONT_HERSHEY_SIMPLEX
     boxes = []
     ball = []
     box_detections = []
-    colors = [(255, 255, 255), (255, 0, 0), (0, 0, 255), (0, 0, 0), (0, 165, 255), (0, 128, 128), (128, 0, 128)]
+    colors = [(255, 255, 255), (255, 0, 0), (128, 0, 0), (0, 0, 255), (0, 0, 0), (0, 165, 255), (0, 128, 128), (128, 0, 128)]
     for box, label, score in zip(detections['boxes'], detections['labels'], detections['scores']):
         if label == PLAYER_LABEL:
             x1, y1, x2, y2 = box
@@ -268,7 +275,7 @@ def draw_bboxes(image, detections):
 
             if img.size <= 0:
                 continue
-            color_index = get_player_team(img)
+            color_index = get_player_team(img, color_index_mappings[team1_color], color_index_mappings[team2_color])
 
             if color_index is None:
                 continue
@@ -335,17 +342,18 @@ def draw_bboxes(image, detections):
                 if len(last_player_touching) < 7:
                     last_player_touching.append(id)
                     current_possession_player = id
-                    current_possession_team = 1 if color_index == 1 else 2
+                    current_possession_team = 1 if color_index == color_index_mappings[team1_color] else 2
                 else:
                     last_player_touching.pop()
                     last_player_touching.append(id)
                     if check_player_changed(last_player_touching, id):
                         current_possession_player = id
-                        current_possession_team = 1 if color_index == 1 else 2
+                        current_possession_team = 1 if color_index == color_index_mappings[team2_color] else 2
 
         cv2.rectangle(image, (x1, y1), (x2, y2), colors[color_index], 2)
-        cv2.putText(image, team_white_poss, (x1, max(0, y1 - 70)), font, 1, (255, 255, 255), 2)
-        cv2.putText(image, team_blue_poss, (int(x1), max(0, int(y1) - 110)), font, 1, (255, 0, 0), 2)
+        cv2.putText(image, team1_poss, (x1, max(0, y1 - 70)), font, 1, colors[color_index_mappings[team1_color]], 2)
+        cv2.putText(image, team2_poss, (int(x1), max(0, int(y1) - 110)), font, 1,
+                    colors[color_index_mappings[team2_color]], 2)
         cv2.putText(image, "YES" if id == current_possession_player else "NO", (int(x1), max(0, int(y1) - 30)), font, 1,
                     colors[color_index], 2)
 
@@ -410,7 +418,7 @@ def run_detector(model, args):
             img_tensor = img_tensor.unsqueeze(dim=0).to(args.device)
             detections = model(img_tensor)[0]
 
-        frame = draw_bboxes(frame, detections)
+        frame = draw_bboxes(frame, detections, args.team1_color, args.team2_color)
         out_sequence.write(frame)
         pbar.update(1)
 
@@ -434,6 +442,8 @@ if __name__ == '__main__':
     parser.add_argument('--out_video', help='path to video with detection results', type=str, required=True,
                         default=None)
     parser.add_argument('--device', help='device (CPU or CUDA)', type=str, default='cuda:0')
+    parser.add_argument('--team1_color', help='kit color for the first team', type=str, default='white')
+    parser.add_argument('--team2_color', help='kit color for the second team', type=str, default='blue')
     args = parser.parse_args()
 
     print('Video path: {}'.format(args.path))
@@ -443,6 +453,8 @@ if __name__ == '__main__':
     print('Player confidence detection threshold [0..1]: {}'.format(args.player_threshold))
     print('Output video path: {}'.format(args.out_video))
     print('Device: {}'.format(args.device))
+    print('Team1 color: {}'.format(args.team1_color))
+    print('Team2 color: {}'.format(args.team2_color))
 
     print('')
 

@@ -4,19 +4,22 @@ import concurrent.futures
 import time
 from threading import Thread
 
+import torch.cuda
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QSlider, QStyle, QVBoxLayout, \
-    QWidget, QMessageBox, QProgressDialog, QLabel, QProgressBar
+    QWidget, QMessageBox, QProgressDialog, QLabel, QProgressBar, QComboBox
 
 
-def run_algorithm(video_path, output_path, device_type):
-    ret = os.system(f"python ../FootAndBall/run_detector.py --path "
+def run_algorithm(video_path, output_path, device_type, team1_color, team2_color):
+    ret = os.system(f"python ../run_detector.py --path "
                     f"{video_path} "
                     f"--weights "
-                    f"../FootAndBall/models/model_20201019_1416_final.pth "
-                    f"--out_video {output_path} --device {device_type}")
+                    f"../models/model_20201019_1416_final.pth "
+                    f"--out_video {output_path} --device {device_type} "
+                    f"--team1_color {team1_color} "
+                    f"--team2_color {team2_color}")
 
     if ret == 0:
         return output_path
@@ -46,6 +49,32 @@ class MainWindow(QWidget):
         video_play_layout.addWidget(self.play_button)
         video_play_layout.addWidget(self.video_slider)
 
+        self.team1_combo_box = QComboBox()
+        self.team1_combo_box.addItem("White")
+        self.team1_combo_box.addItem("Dark Blue")
+        self.team1_combo_box.addItem("Light Blue")
+        self.team1_combo_box.addItem("Red")
+        self.team1_combo_box.addItem("Black")
+        self.team1_combo_box.addItem("Orange")
+        self.team1_combo_box.addItem("Yellow")
+        self.team1_combo_box.addItem("Purple")
+
+        self.team2_combo_box = QComboBox()
+        self.team2_combo_box.addItem("White")
+        self.team2_combo_box.addItem("Dark Blue")
+        self.team2_combo_box.addItem("Light Blue")
+        self.team2_combo_box.addItem("Red")
+        self.team2_combo_box.addItem("Black")
+        self.team2_combo_box.addItem("Orange")
+        self.team2_combo_box.addItem("Yellow")
+        self.team2_combo_box.addItem("Purple")
+        self.team2_combo_box.setCurrentIndex(1)
+
+        combo_box_layout = QHBoxLayout()
+        combo_box_layout.setContentsMargins(0, 0, 0, 0)
+        combo_box_layout.addWidget(self.team1_combo_box)
+        combo_box_layout.addWidget(self.team2_combo_box)
+
         videoWidget = QVideoWidget()
 
         self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
@@ -59,6 +88,7 @@ class MainWindow(QWidget):
         layout.addWidget(videoWidget)
         layout.addLayout(video_play_layout)
         layout.addWidget(upload_button)
+        layout.addLayout(combo_box_layout)
 
         self.setLayout(layout)
 
@@ -109,7 +139,12 @@ class MainWindow(QWidget):
             progress_dialog.setCancelButton(None)
             progress_dialog.show()
 
-            run_algorithm_thread = Thread(target=run_algorithm, args=(fileName, output_path, "cpu"))
+            device_used = "cuda" if torch.cuda.is_available() else "cpu"
+            team1_color = self.team1_combo_box.currentText().replace(" ", "_").lower()
+            team2_color = self.team2_combo_box.currentText().replace(" ", "_").lower()
+
+            run_algorithm_thread = Thread(target=run_algorithm, args=(fileName, output_path, device_used,
+                                                                      team1_color, team2_color))
             run_algorithm_thread.start()
 
             while run_algorithm_thread.is_alive():

@@ -16,10 +16,10 @@ import time
 import torch
 import torch.optim as optim
 
-from network import footandball
-from data.data_reader import make_dataloaders
-from network.ssd_loss import SSDLoss
-from misc.config import Params
+from FootAndBall.network import footandball
+from FootAndBall.data.data_reader import make_dataloaders
+from FootAndBall.network.ssd_loss import SSDLoss
+from FootAndBall.misc.config import Params
 
 MODEL_FOLDER = 'models'
 

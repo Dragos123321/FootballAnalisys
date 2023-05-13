@@ -15,8 +15,8 @@ import os
 
 import torch
 
-import data.augmentation as augmentation
-from data.augmentation import PLAYER_LABEL
+import FootAndBall.data.augmentation as augmentation
+from FootAndBall.data.augmentation import PLAYER_LABEL
 
 
 class SpdDataset(torch.utils.data.Dataset):

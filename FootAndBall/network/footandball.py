@@ -5,9 +5,9 @@
 import torch
 import torch.nn as nn
 
-import network.fpn as fpn
-import network.nms as nms
-from data.augmentation import BALL_LABEL, PLAYER_LABEL, BALL_BBOX_SIZE
+import FootAndBall.network.fpn as fpn
+import FootAndBall.network.nms as nms
+from FootAndBall.data.augmentation import BALL_LABEL, PLAYER_LABEL, BALL_BBOX_SIZE
 
 
 # Get ranges of cells to mark with ground truth location

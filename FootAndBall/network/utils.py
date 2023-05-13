@@ -9,7 +9,7 @@ import numpy as np
 import cv2
 import torch.nn as nn
 
-import data.augmentation as augmentations
+import FootAndBall.data.augmentation as augmentations
 
 """
 # VGG-like network configuration

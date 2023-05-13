@@ -6,9 +6,9 @@ import random
 import torch
 from torch.utils.data import Sampler, DataLoader, ConcatDataset
 
-from data.issia_dataset import create_issia_dataset, IssiaDataset
-from data.spd_bmvc2017_dataset import create_spd_dataset
-from misc.config import Params
+from FootAndBall.data.issia_dataset import create_issia_dataset, IssiaDataset
+from FootAndBall.data.spd_bmvc2017_dataset import create_spd_dataset
+from FootAndBall.misc.config import Params
 
 
 def make_dataloaders(params: Params):
