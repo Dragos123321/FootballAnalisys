@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton,
 
 
 def run_algorithm(video_path, output_path, device_type, team1_color, team2_color):
-    ret = os.system(f"python ../run_detector.py --path "
+    ret = os.system(f"python ../run_algorithm.py --path "
                     f"{video_path} "
                     f"--weights "
                     f"../models/model_20201019_1416_final.pth "
@@ -109,7 +109,7 @@ class MainWindow(QWidget):
         fileName, _ = QFileDialog.getOpenFileName(self,
                                                   "Choose video",
                                                   ".",
-                                                  "Video Files (*.mp4 *.flv *.ts *.mts *.avi)")
+                                                  "Video Files (*.mp4 *.flv *.ts *.mts *.avi *.mkv)")
 
         if fileName != '':
             output_path = fileName.rsplit(".", 1)[0] + "_out.avi"
