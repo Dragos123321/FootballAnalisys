@@ -1,22 +1,11 @@
-import os
-import sched
-import time
 import cv2
 import numpy as np
-import torch
-import tqdm
 
-from threading import Thread
 from typing import List
 
-from norfair import mean_euclidean
 from norfair.camera_motion import MotionEstimator
-from norfair.tracker import Detection, Tracker
+from norfair.tracker import Detection
 from norfair.tracker import TrackedObject
-
-import FootAndBall.data.augmentation as augmentations
-import FootAndBall.network.footandball as footandball
-from FootAndBall.data.augmentation import PLAYER_LABEL, BALL_LABEL
 
 
 def get_nr_of_zeros(mask, image):
