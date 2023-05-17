@@ -1,9 +1,19 @@
+import os
+import sched
+import time
+import torch
+import tqdm
+
 from dataclasses import dataclass
+from threading import Thread
 
 from run_algorithm_utils import *
 
 import FootAndBall.data.augmentation as augmentations
 from FootAndBall.data.augmentation import PLAYER_LABEL, BALL_LABEL
+
+from norfair import mean_euclidean
+from norfair.tracker import Tracker
 
 IDENTIFICATION_COLOR_LIMIT = 1500
 NR_OF_DETECTIONS = 10
@@ -192,7 +202,7 @@ class GameAnalyzer:
         possession_text_y = possession_text_height + 10
 
         cv2.putText(frame, possession_text, (possession_text_x, possession_text_y), self.font, self.font_scale,
-                    (255, 255, 255), self.font_thickness)
+                    (0, 0, 0), self.font_thickness)
 
         # cv2.rectangle(frame, (x_left, y_top), (x_right, y_bottom), self.colors[color_index], 2)
         # cv2.putText(frame, self.team1_poss_str, (x_left, max(0, y_top - 70)), self.font, self.font_scale,

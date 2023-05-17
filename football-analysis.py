@@ -1,5 +1,9 @@
 import sys
 
+from threading import Thread
+
+import FootAndBall.network.footandball as footandball
+
 import torch.cuda
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
@@ -113,7 +117,7 @@ class MainWindow(QWidget):
         fileName, _ = QFileDialog.getOpenFileName(self,
                                                   "Choose video",
                                                   ".",
-                                                  "Video Files (*.mp4 *.flv *.ts *.mts *.avi *.mkv)")
+                                                  "Video Files (*.mp4 *.ogg *.avi *.mkv)")
 
         if fileName != '':
             output_path = fileName.rsplit(".", 1)[0] + "_out.avi"
