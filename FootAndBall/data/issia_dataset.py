@@ -81,13 +81,16 @@ class IssiaDataset(torch.utils.data.Dataset):
     def __getitem__(self, ndx):
         # Returns transferred image as a normalized tensor
         image_path, camera_id, image_ndx = self.image_list[ndx]
-        image = Image.open(image_path)
-        boxes, labels = self.get_annotations(camera_id, image_ndx)
-        image, boxes, labels = self.transform((image, boxes, labels))
+        try:
+            image = Image.open(image_path)
+            boxes, labels = self.get_annotations(camera_id, image_ndx)
+            image, boxes, labels = self.transform((image, boxes, labels))
 
-        boxes = torch.tensor(boxes, dtype=torch.float)
-        labels = torch.tensor(labels, dtype=torch.int64)
-        return image, boxes, labels
+            boxes = torch.tensor(boxes, dtype=torch.float)
+            labels = torch.tensor(labels, dtype=torch.int64)
+            return image, boxes, labels
+        except:
+            return None
 
     def get_annotations(self, camera_id, image_ndx):
         # Prepare annotations as list of boxes (xmin, ymin, xmax, ymax) in pixel coordinates
@@ -110,7 +113,7 @@ class IssiaDataset(torch.utils.data.Dataset):
             boxes.append((player_x, player_y, player_x + player_width, player_y + player_height))
             labels.append(PLAYER_LABEL)
 
-        return np.array(boxes, dtype=np.float), np.array(labels, dtype=np.int64)
+        return np.array(boxes, dtype=np.float64), np.array(labels, dtype=np.int64)
 
     def get_elems_with_ball(self):
         # Get indexes of images with ball ground truth

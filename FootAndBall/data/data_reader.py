@@ -74,7 +74,7 @@ class BalancedSampler(Sampler):
         n_ball_images = len(issia_ds.ball_images_ndx)
         # no_ball_images = 0.5 * ball_images
         n_no_ball_images = min(len(issia_ds.no_ball_images_ndx), int(0.5 * n_ball_images))
-        issia_samples_ndx = list(issia_ds.ball_images_ndx) + random.sample(issia_ds.no_ball_images_ndx,
+        issia_samples_ndx = list(issia_ds.ball_images_ndx) + random.sample(sorted(issia_ds.no_ball_images_ndx),
                                                                            n_no_ball_images)
         if issia_dataset_ndx > 0:
             # Add sizes of previous datasets to create cummulative indexes

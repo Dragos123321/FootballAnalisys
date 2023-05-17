@@ -1,30 +1,27 @@
-import argparse
-import os
-import sched
-import time
-import cv2
-import numpy as np
-import torch
-import tqdm
-
-from threading import Thread
-from typing import List
 from dataclasses import dataclass
-
-from norfair import mean_euclidean
-from norfair.camera_motion import MotionEstimator
-from norfair.tracker import Detection, Tracker
-from norfair.tracker import TrackedObject
 
 from run_algorithm_utils import *
 
 import FootAndBall.data.augmentation as augmentations
-import FootAndBall.network.footandball as footandball
 from FootAndBall.data.augmentation import PLAYER_LABEL, BALL_LABEL
 
 IDENTIFICATION_COLOR_LIMIT = 1500
 NR_OF_DETECTIONS = 10
-NR_OF_TOUCHINGS = 30
+NR_OF_TOUCHES = 50
+
+
+class ModelArgs:
+    def __init__(self, path, model, weights, ball_threshold, player_threshold, out_video, device, team1_color,
+                 team2_color):
+        self.path = path
+        self.model = model
+        self.weights = weights
+        self.ball_threshold = ball_threshold
+        self.player_threshold = player_threshold
+        self.out_video = out_video
+        self.device = device
+        self.team1_color = team1_color
+        self.team2_color = team2_color
 
 
 def get_players_team(frame, team1_color_index, team2_color_index):
@@ -216,7 +213,7 @@ class GameAnalyzer:
         if ball is not None:
             has_ball = check_intersection(ball.x, ball.y, x_left, x_right, y_top, y_bottom)
             if has_ball and id != self.current_possession_player:
-                if len(self.last_player_touching) < NR_OF_TOUCHINGS:
+                if len(self.last_player_touching) < NR_OF_TOUCHES:
                     self.last_player_touching.append(id)
                     self.current_possession_player = id
                     self.current_possession_team = 1 if color_index == self.color_index_mappings[team1_color] \
@@ -314,25 +311,25 @@ class GameAnalyzer:
 
         if self.__args.device == 'cpu':
             print('Loading CPU weights...')
-            state_dict = torch.load(args.weights, map_location=lambda storage, loc: storage)
+            state_dict = torch.load(self.__args.weights, map_location=lambda storage, loc: storage)
         else:
             print('Loading GPU weights...')
-            state_dict = torch.load(args.weights)
+            state_dict = torch.load(self.__args.weights)
 
         self.__model.load_state_dict(state_dict)
         self.__model.eval()
 
-        video = cv2.VideoCapture(args.path)
+        video = cv2.VideoCapture(self.__args.path)
         fps = video.get(cv2.CAP_PROP_FPS)
 
         (frame_width, frame_height) = (int(video.get(cv2.CAP_PROP_FRAME_WIDTH)),
                                        int(video.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
         n_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-        out_sequence = cv2.VideoWriter(args.out_video, cv2.VideoWriter_fourcc(*'XVID'), fps,
+        out_sequence = cv2.VideoWriter(self.__args.out_video, cv2.VideoWriter_fourcc(*'XVID'), fps,
                                        (frame_width, frame_height))
 
-        print('Processing video: {}'.format(args.path))
+        print('Processing video: {}'.format(self.__args.path))
         progress_bar = tqdm.tqdm(total=n_frames)
 
         possession_computation_scheduler = sched.scheduler(time.time, time.sleep)
@@ -360,41 +357,3 @@ class GameAnalyzer:
         out_sequence.release()
         self.close_calculator = True
         scheduler_thread.join()
-
-
-if __name__ == '__main__':
-    print('Running FootballAnalysis algorithm on input video')
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--path', help='Path to video', type=str, required=True)
-    parser.add_argument('--model', help='Model name', type=str, default='fb1')
-    parser.add_argument('--weights', help='Path to model weights', type=str, required=True)
-    parser.add_argument('--ball_threshold', help='Ball confidence detection threshold', type=float, default=0.01)
-    parser.add_argument('--player_threshold', help='Player confidence detection threshold', type=float, default=0.7)
-    parser.add_argument('--out_video', help='Path to video with detection results', type=str, required=True,
-                        default=None)
-    parser.add_argument('--device', help='Device (CPU or CUDA)', type=str, default='cuda:0')
-    parser.add_argument('--team1_color', help='Kit color for the first team', type=str, default='white')
-    parser.add_argument('--team2_color', help='Kit color for the second team', type=str, default='dark_blue')
-    args = parser.parse_args()
-
-    print('Video path: {}'.format(args.path))
-    print('Model: {}'.format(args.model))
-    print('Model weights path: {}'.format(args.weights))
-    print('Ball confidence detection threshold [0..1]: {}'.format(args.ball_threshold))
-    print('Player confidence detection threshold [0..1]: {}'.format(args.player_threshold))
-    print('Output video path: {}'.format(args.out_video))
-    print('Device: {}'.format(args.device))
-    print('Team1 color: {}'.format(args.team1_color))
-    print('Team2 color: {}'.format(args.team2_color))
-
-    print('')
-
-    assert os.path.exists(args.weights), 'Cannot find FootAndBall model weights: {}'.format(args.weights)
-    assert os.path.exists(args.path), 'Cannot open video: {}'.format(args.path)
-
-    model = footandball.model_factory(args.model, 'detect', ball_threshold=args.ball_threshold,
-                                      player_threshold=args.player_threshold)
-
-    analyzer = GameAnalyzer(model, args)
-    analyzer.run()

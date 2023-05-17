@@ -1,8 +1,4 @@
-import os
 import sys
-import concurrent.futures
-import time
-from threading import Thread
 
 import torch.cuda
 from PyQt5.QtCore import Qt, QUrl
@@ -11,20 +7,28 @@ from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QSlider, QStyle, QVBoxLayout, \
     QWidget, QMessageBox, QProgressDialog, QLabel, QProgressBar, QComboBox
 
+from run_algorithm import *
+
 
 def run_algorithm(video_path, output_path, device_type, team1_color, team2_color):
-    ret = os.system(f"python ../run_algorithm.py --path "
-                    f"{video_path} "
-                    f"--weights "
-                    f"../models/model_20201019_1416_final.pth "
-                    f"--out_video {output_path} --device {device_type} "
-                    f"--team1_color {team1_color} "
-                    f"--team2_color {team2_color}")
+    print('Running FootballAnalysis algorithm on input video')
+    args = ModelArgs(
+        path=video_path,
+        model='fb1',
+        weights=f"models/model_20230310_1416_final.pth",
+        ball_threshold=0.01,
+        player_threshold=0.7,
+        out_video=output_path,
+        device=device_type,
+        team1_color=team1_color,
+        team2_color=team2_color
+    )
 
-    if ret == 0:
-        return output_path
-    else:
-        return "FAIL"
+    model = footandball.model_factory(args.model, 'detect', ball_threshold=args.ball_threshold,
+                                      player_threshold=args.player_threshold)
+
+    analyzer = GameAnalyzer(model, args)
+    analyzer.run()
 
 
 class MainWindow(QWidget):
@@ -134,7 +138,7 @@ class MainWindow(QWidget):
                 Qt.WindowStaysOnTopHint)
             progress_dialog.setWindowModality(Qt.WindowModal)
             progress_dialog.setLayout(process_dialog_layout)
-            progress_dialog.setFixedSize(200, 75)
+            progress_dialog.setFixedSize(200, 100)
             progress_dialog.setWindowTitle("Processing video")
             progress_dialog.setCancelButton(None)
             progress_dialog.show()
@@ -145,13 +149,16 @@ class MainWindow(QWidget):
 
             run_algorithm_thread = Thread(target=run_algorithm, args=(fileName, output_path, device_used,
                                                                       team1_color, team2_color))
-            run_algorithm_thread.start()
+            try:
+                run_algorithm_thread.start()
 
-            while run_algorithm_thread.is_alive():
-                QApplication.processEvents()
-                time.sleep(0.1)
+                while run_algorithm_thread.is_alive():
+                    QApplication.processEvents()
+                    time.sleep(0.1)
 
-            progress_dialog.close()
+                progress_dialog.close()
+            except Exception as err:
+                QMessageBox.critical(self, "Algorithm error", str(err))
 
             self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(output_path)))
             self.play_button.setEnabled(True)

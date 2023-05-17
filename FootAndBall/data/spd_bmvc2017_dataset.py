@@ -74,7 +74,7 @@ class SpdDataset(torch.utils.data.Dataset):
             boxes.append((x1, y1, x2, y2))
             labels.append(PLAYER_LABEL)
 
-        return np.array(boxes, dtype=np.float), np.array(labels, dtype=np.int64)
+        return np.array(boxes, dtype=np.float64), np.array(labels, dtype=np.int64)
 
 
 def create_spd_dataset(dataset_path, ids, mode):
