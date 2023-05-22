@@ -122,47 +122,48 @@ class MainWindow(QWidget):
         if fileName != '':
             output_path = fileName.rsplit(".", 1)[0] + "_out.avi"
 
-            process_dialog_label = QLabel("Processing video...")
-            process_dialog_label.setAlignment(Qt.AlignCenter)
+            if not os.path.exists(output_path):
+                process_dialog_label = QLabel("Processing video...")
+                process_dialog_label.setAlignment(Qt.AlignCenter)
 
-            progress_bar = QProgressBar()
-            progress_bar.setRange(0, 0)
-            progress_bar.setValue(0)
-            progress_bar.setStyleSheet("margin-right: 0px;")
+                progress_bar = QProgressBar()
+                progress_bar.setRange(0, 0)
+                progress_bar.setValue(0)
+                progress_bar.setStyleSheet("margin-right: 0px;")
 
-            process_dialog_layout = QVBoxLayout()
-            process_dialog_layout.addWidget(process_dialog_label)
-            process_dialog_layout.addWidget(progress_bar)
+                process_dialog_layout = QVBoxLayout()
+                process_dialog_layout.addWidget(process_dialog_label)
+                process_dialog_layout.addWidget(progress_bar)
 
-            progress_dialog = QProgressDialog(self)
-            progress_dialog.setWindowFlags(
-                Qt.Window |
-                Qt.CustomizeWindowHint |
-                Qt.WindowTitleHint |
-                Qt.WindowStaysOnTopHint)
-            progress_dialog.setWindowModality(Qt.WindowModal)
-            progress_dialog.setLayout(process_dialog_layout)
-            progress_dialog.setFixedSize(200, 100)
-            progress_dialog.setWindowTitle("Processing video")
-            progress_dialog.setCancelButton(None)
-            progress_dialog.show()
+                progress_dialog = QProgressDialog(self)
+                progress_dialog.setWindowFlags(
+                    Qt.Window |
+                    Qt.CustomizeWindowHint |
+                    Qt.WindowTitleHint |
+                    Qt.WindowStaysOnTopHint)
+                progress_dialog.setWindowModality(Qt.WindowModal)
+                progress_dialog.setLayout(process_dialog_layout)
+                progress_dialog.setFixedSize(200, 100)
+                progress_dialog.setWindowTitle("Processing video")
+                progress_dialog.setCancelButton(None)
+                progress_dialog.show()
 
-            device_used = "cuda" if torch.cuda.is_available() else "cpu"
-            team1_color = self.team1_combo_box.currentText().replace(" ", "_").lower()
-            team2_color = self.team2_combo_box.currentText().replace(" ", "_").lower()
+                device_used = "cuda" if torch.cuda.is_available() else "cpu"
+                team1_color = self.team1_combo_box.currentText().replace(" ", "_").lower()
+                team2_color = self.team2_combo_box.currentText().replace(" ", "_").lower()
 
-            run_algorithm_thread = Thread(target=run_algorithm, args=(fileName, output_path, device_used,
-                                                                      team1_color, team2_color))
-            try:
-                run_algorithm_thread.start()
+                run_algorithm_thread = Thread(target=run_algorithm, args=(fileName, output_path, device_used,
+                                                                          team1_color, team2_color))
+                try:
+                    run_algorithm_thread.start()
 
-                while run_algorithm_thread.is_alive():
-                    QApplication.processEvents()
-                    time.sleep(0.1)
+                    while run_algorithm_thread.is_alive():
+                        QApplication.processEvents()
+                        time.sleep(0.1)
 
-                progress_dialog.close()
-            except Exception as err:
-                QMessageBox.critical(self, "Algorithm error", str(err))
+                    progress_dialog.close()
+                except Exception as err:
+                    QMessageBox.critical(self, "Algorithm error", str(err))
 
             self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(output_path)))
             self.play_button.setEnabled(True)
