@@ -1,9 +1,5 @@
 import sys
 
-from threading import Thread
-
-import FootAndBall.network.footandball as footandball
-
 import torch.cuda
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
@@ -11,10 +7,14 @@ from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QPushButton, QSlider, QStyle, QVBoxLayout, \
     QWidget, QMessageBox, QProgressDialog, QLabel, QProgressBar, QComboBox
 
+import FootAndBall.network.footandball as footandball
 from run_algorithm import *
 
+DATABASE_PATH = "football_games.db"
 
-def run_algorithm(video_path, output_path, device_type, team1_color, team2_color):
+
+def run_algorithm(video_path, output_path, device_type, team1_color, team2_color, database_name, table_name,
+                  table_exists):
     print('Running FootballAnalysis algorithm on input video')
     args = ModelArgs(
         path=video_path,
@@ -31,7 +31,7 @@ def run_algorithm(video_path, output_path, device_type, team1_color, team2_color
     model = footandball.model_factory(args.model, 'detect', ball_threshold=args.ball_threshold,
                                       player_threshold=args.player_threshold)
 
-    analyzer = GameAnalyzer(model, args)
+    analyzer = GameAnalyzer(model, args, database_name, table_name, table_exists)
     analyzer.run()
 
 
@@ -119,51 +119,60 @@ class MainWindow(QWidget):
                                                   ".",
                                                   "Video Files (*.mp4 *.ogg *.avi *.mkv)")
 
+        create_database(DATABASE_PATH)
+
         if fileName != '':
             output_path = fileName.rsplit(".", 1)[0] + "_out.avi"
 
-            if not os.path.exists(output_path):
-                process_dialog_label = QLabel("Processing video...")
-                process_dialog_label.setAlignment(Qt.AlignCenter)
+            exists_table = table_exists(DATABASE_PATH, fileName.rsplit("/")[-1].rsplit(".", 1)[0])
 
-                progress_bar = QProgressBar()
-                progress_bar.setRange(0, 0)
-                progress_bar.setValue(0)
-                progress_bar.setStyleSheet("margin-right: 0px;")
+            if not exists_table:
+                create_table(DATABASE_PATH, fileName.rsplit("/")[-1].rsplit(".", 1)[0])
 
-                process_dialog_layout = QVBoxLayout()
-                process_dialog_layout.addWidget(process_dialog_label)
-                process_dialog_layout.addWidget(progress_bar)
+            process_dialog_label = QLabel("Processing video...")
+            process_dialog_label.setAlignment(Qt.AlignCenter)
 
-                progress_dialog = QProgressDialog(self)
-                progress_dialog.setWindowFlags(
-                    Qt.Window |
-                    Qt.CustomizeWindowHint |
-                    Qt.WindowTitleHint |
-                    Qt.WindowStaysOnTopHint)
-                progress_dialog.setWindowModality(Qt.WindowModal)
-                progress_dialog.setLayout(process_dialog_layout)
-                progress_dialog.setFixedSize(200, 100)
-                progress_dialog.setWindowTitle("Processing video")
-                progress_dialog.setCancelButton(None)
-                progress_dialog.show()
+            progress_bar = QProgressBar()
+            progress_bar.setRange(0, 0)
+            progress_bar.setValue(0)
+            progress_bar.setStyleSheet("margin-right: 0px;")
 
-                device_used = "cuda" if torch.cuda.is_available() else "cpu"
-                team1_color = self.team1_combo_box.currentText().replace(" ", "_").lower()
-                team2_color = self.team2_combo_box.currentText().replace(" ", "_").lower()
+            process_dialog_layout = QVBoxLayout()
+            process_dialog_layout.addWidget(process_dialog_label)
+            process_dialog_layout.addWidget(progress_bar)
 
-                run_algorithm_thread = Thread(target=run_algorithm, args=(fileName, output_path, device_used,
-                                                                          team1_color, team2_color))
-                try:
-                    run_algorithm_thread.start()
+            progress_dialog = QProgressDialog(self)
+            progress_dialog.setWindowFlags(
+                Qt.Window |
+                Qt.CustomizeWindowHint |
+                Qt.WindowTitleHint |
+                Qt.WindowStaysOnTopHint)
+            progress_dialog.setWindowModality(Qt.WindowModal)
+            progress_dialog.setLayout(process_dialog_layout)
+            progress_dialog.setFixedSize(200, 100)
+            progress_dialog.setWindowTitle("Processing video")
+            progress_dialog.setCancelButton(None)
+            progress_dialog.show()
 
-                    while run_algorithm_thread.is_alive():
-                        QApplication.processEvents()
-                        time.sleep(0.1)
+            device_used = "cuda" if torch.cuda.is_available() else "cpu"
+            team1_color = self.team1_combo_box.currentText().replace(" ", "_").lower()
+            team2_color = self.team2_combo_box.currentText().replace(" ", "_").lower()
 
-                    progress_dialog.close()
-                except Exception as err:
-                    QMessageBox.critical(self, "Algorithm error", str(err))
+            run_algorithm_thread = Thread(target=run_algorithm,
+                                          args=(fileName, output_path, device_used, team1_color, team2_color,
+                                                DATABASE_PATH,
+                                                fileName.rsplit("/")[-1].rsplit(".", 1)[0],
+                                                exists_table))
+            try:
+                run_algorithm_thread.start()
+
+                while run_algorithm_thread.is_alive():
+                    QApplication.processEvents()
+                    time.sleep(0.1)
+
+                progress_dialog.close()
+            except Exception as err:
+                QMessageBox.critical(self, "Algorithm error", str(err))
 
             self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(output_path)))
             self.play_button.setEnabled(True)
@@ -175,7 +184,7 @@ class MainWindow(QWidget):
         else:
             self.media_player.play()
 
-    def media_state_changed(self, state):
+    def media_state_changed(self):
         if self.media_player.state() == QMediaPlayer.PlayingState:
             self.play_button.setIcon(
                 self.style().standardIcon(QStyle.SP_MediaPause))
