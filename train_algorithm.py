@@ -1,5 +1,3 @@
-# Copyright (c) 2020 Sport Algorithmics and Gaming
-
 import tqdm
 import argparse
 import pickle
