@@ -14,11 +14,11 @@ def create_table(database_path, table_name):
 
     cursor = connection.cursor()
 
-    cursor.execute(f'''CREATE TABLE {table_name} (
-                        frame_index INT NOT NULL,
-                        team1_possession VARCHAR(5) NOT NULL,
-                        team2_possession VARCHAR(5) NOT NULL
-                    )''')
+    cursor.execute(f'CREATE TABLE {table_name} ( \
+                        frame_index INT NOT NULL, \
+                        team1_possession VARCHAR(5) NOT NULL, \
+                        team2_possession VARCHAR(5) NOT NULL \
+                    )')
 
     connection.commit()
 
