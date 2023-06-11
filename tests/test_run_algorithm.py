@@ -1,7 +1,4 @@
-import cv2
-import numpy as np
 import unittest
-
 from unittest import mock
 
 from run_algorithm import *

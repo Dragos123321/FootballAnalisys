@@ -1,12 +1,11 @@
-import cv2
-import numpy as np
 import unittest
-from norfair.camera_motion import MotionEstimator
-from norfair.tracker import Detection, TrackedObject
+
+import numpy as np
+from norfair.tracker import Detection
 
 from run_algorithm_utils import (get_nr_of_zeros, get_most_dominant_color,
-                                 tracked_objects_to_detections, create_mask,
-                                 update_motion_estimator, check_intersection,
+                                 create_mask,
+                                 check_intersection,
                                  check_last_touchings_equal)
 
 
