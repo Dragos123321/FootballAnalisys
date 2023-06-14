@@ -162,37 +162,29 @@ def save_training_stats(training_stats, model_name):
 
 
 def train_model(params: Params):
-    # Create the model folder if it doesn't exist
     if not os.path.exists(MODEL_FOLDER):
         os.mkdir(MODEL_FOLDER)
 
-    # Check if the model folder exists
     assert os.path.exists(MODEL_FOLDER), 'Cannot create folder to save trained model: {}'.format(MODEL_FOLDER)
 
-    # Load data loaders
     data_loaders = make_dataloaders(params)
 
-    # Print dataset sizes
     print('Training set: Dataset size: {}'.format(len(data_loaders['train'].dataset)))
     if 'val' in data_loaders:
         print('Validation set: Dataset size: {}'.format(len(data_loaders['val'].dataset)))
 
-    # Create model
     device = "cuda" if torch.cuda.is_available() else 'cpu'
     model = footandball.model_factory(params.model, 'train')
     model.print_summary(show_architecture=True)
     model = model.to(device)
 
-    # Generate model name based on current time
     model_name = 'model_' + time.strftime("%Y%m%d_%height%M")
     print('Model name: {}'.format(model_name))
 
-    # Create optimizer and scheduler
     optimizer = optim.Adam(model.parameters(), lr=params.lr)
     scheduler_milestones = [int(params.epochs * 0.75)]
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, scheduler_milestones, gamma=0.1)
 
-    # Train the model
     train_model_util(model, optimizer, scheduler, params.epochs, data_loaders, device, model_name)
 
 
