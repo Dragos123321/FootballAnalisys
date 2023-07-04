@@ -16,7 +16,14 @@ from run_algorithm_utils import *
 
 IDENTIFICATION_COLOR_LIMIT = 1500
 NR_OF_DETECTIONS = 10
-NR_OF_TOUCHES = 50
+NR_OF_TOUCHES = 10
+
+
+def convert_milliseconds(duration_ms):
+    minutes = int((duration_ms / (1000 * 60)) % 60)
+    seconds = int((duration_ms / 1000) % 60)
+    milliseconds = int(duration_ms % 1000)
+    return f"{minutes}:{seconds}:{milliseconds}"
 
 
 class ModelArgs:
@@ -196,7 +203,8 @@ class GameAnalyzer:
 
             self.players_colors[detection.data["id"]].append(detection.data["color_index"])
 
-    def __print_possession(self, frame, frame_index):
+    def __print_possession(self, frame, id, is_algorithm, x_left, y_top, x_right, y_bottom, team1_color, team2_color,
+                           color_index):
         if self.team1_poss_str != "" and self.team2_poss_str != "":
             possession_text = self.team1_poss_str + " - " + self.team2_poss_str
             (possession_text_width, possession_text_height), _ = cv2.getTextSize(possession_text, self.font,
@@ -205,8 +213,27 @@ class GameAnalyzer:
             possession_text_x = int((frame.shape[1] - possession_text_width) / 2)
             possession_text_y = possession_text_height + 10
 
+            text_size, _ = cv2.getTextSize(possession_text, self.font, self.font_scale, self.font_thickness)
+            cv2.rectangle(frame, (possession_text_x - 10, possession_text_y - text_size[1] - 5),
+                          (possession_text_x + text_size[0] + 10, possession_text_y + 5), (0, 0, 0), cv2.FILLED)
             cv2.putText(frame, possession_text, (possession_text_x, possession_text_y), self.font, self.font_scale,
-                        (0, 0, 0), self.font_thickness)
+                        (255, 255, 255), self.font_thickness)
+
+            if is_algorithm:
+                cv2.rectangle(frame, (x_left, y_top), (x_right, y_bottom), self.colors[color_index], 2)
+                cv2.putText(frame, self.team1_poss_str, (x_left, max(0, y_top - 70)), self.font, self.font_scale,
+                            self.colors[self.color_index_mappings[team1_color]], self.font_thickness)
+                cv2.putText(frame, self.team2_poss_str, (int(x_left), max(0, int(y_top) - 110)), self.font,
+                            self.font_scale,
+                            self.colors[self.color_index_mappings[team2_color]], self.font_thickness)
+                cv2.putText(frame,
+                            "YES" if id == self.current_possession_player else "NO",
+                            (int(x_left),
+                             max(0, int(y_top) - 30)),
+                            self.font,
+                            self.font_scale,
+                            self.colors[color_index],
+                            self.font_thickness)
 
     def __check_team_in_possession(self, id, ball, x_left, y_top, x_right, y_bottom, color_index, team1_color):
         if ball is not None:
@@ -245,7 +272,7 @@ class GameAnalyzer:
 
         return tracked_objects_to_detections(players_track_objects)
 
-    def __analyse_frame(self, frame, detections, team1_color, team2_color, frame_index):
+    def __analyse_frame(self, frame, detections, team1_color, team2_color, frame_index, timestamp):
         ball = None
         boxes_detections = []
         dominant_colors = {}
@@ -293,11 +320,13 @@ class GameAnalyzer:
                 color_index = dominant_colors[id]
 
                 self.__check_team_in_possession(id, ball, x_left, y_top, x_right, y_bottom, color_index, team1_color)
+                self.__print_possession(frame, id, True, x_left, y_top, x_right, y_bottom, team1_color, team2_color,
+                                        color_index)
+                self.__print_ball(frame, ball)
 
         if self.team1_poss_str != "" and self.team2_poss_str != "":
-            self.__print_possession(frame, frame_index)
             add_frame_to_table(self.__table_name, frame_index, self.team1_poss_str, self.team2_poss_str,
-                               self.__connection)
+                               convert_milliseconds(timestamp), self.__connection)
 
         return frame
 
@@ -307,7 +336,7 @@ class GameAnalyzer:
         if self.team1_poss_str is None:
             return frame
 
-        self.__print_possession(frame, frame_index)
+        self.__print_possession(frame, frame_index, False, 0, 0, 0, 0, 0, 0, 0)
 
         return frame
 
@@ -359,8 +388,9 @@ class GameAnalyzer:
                     img_tensor = img_tensor.unsqueeze(dim=0).to(self.__args.device)
                     detections = self.__model(img_tensor)[0]
 
+                timestamp = video.get(cv2.CAP_PROP_POS_MSEC)
                 frame = self.__analyse_frame(frame, detections, self.__args.team1_color, self.__args.team2_color,
-                                             frame_index)
+                                             frame_index, timestamp)
 
             else:
                 frame = self.__load_existing_analyzed_frame(frame, frame_index)

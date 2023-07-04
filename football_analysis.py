@@ -20,7 +20,7 @@ def run_algorithm(video_path, output_path, device_type, team1_color, team2_color
         path=video_path,
         model='fb1',
         weights=f"models/model_20230310_1210_final.pth",
-        ball_threshold=0.01,
+        ball_threshold=0.1,
         player_threshold=0.7,
         out_video=output_path,
         device=device_type,

@@ -17,7 +17,8 @@ def create_table(database_path, table_name):
     cursor.execute(f'CREATE TABLE {table_name} ( \
                         frame_index INT NOT NULL, \
                         team1_possession VARCHAR(5) NOT NULL, \
-                        team2_possession VARCHAR(5) NOT NULL \
+                        team2_possession VARCHAR(5) NOT NULL, \
+                        time             VARCHAR(100) NOT NULL \
                     )')
 
     connection.commit()
@@ -40,11 +41,11 @@ def table_exists(database_path, table_name):
     return result is not None
 
 
-def add_frame_to_table(table_name, frame_index, team1_possession, team2_possession, connection):
+def add_frame_to_table(table_name, frame_index, team1_possession, team2_possession, time, connection):
     cursor = connection.cursor()
 
-    exe_string = f"INSERT INTO {table_name} (frame_index, team1_possession, team2_possession) VALUES ({frame_index}, " \
-                 f"'{team1_possession}', '{team2_possession}')"
+    exe_string = f"INSERT INTO {table_name} (frame_index, team1_possession, team2_possession, time) VALUES ({frame_index}, " \
+                 f"'{team1_possession}', '{team2_possession}', '{time}')"
     cursor.execute(exe_string)
 
     connection.commit()

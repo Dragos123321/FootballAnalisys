@@ -50,7 +50,7 @@ def update_motion_estimator(motion_estimator: MotionEstimator,
 
 
 def check_intersection(ball_x, ball_y, player_x1, player_x2, player_y1, player_y2):
-    if player_x1 - 30 <= ball_x <= player_x2 + 30 and player_y1 <= ball_y <= player_y2:
+    if player_x1 - 20 <= ball_x <= player_x2 + 20 and player_y1 <= ball_y <= player_y2:
         return True
 
     return False
